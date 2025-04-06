@@ -1,7 +1,7 @@
-use std::error::Error;
-use reqwest::{Client, header};
-use tokio::time::{sleep, Duration};
 use futures::future::join_all;
+use reqwest::{header, Client};
+use std::error::Error;
+use tokio::time::{sleep, Duration};
 
 const CHUNK_SIZE: usize = 64 * 1024;
 const MAX_RETRIES: u32 = 5;
@@ -10,8 +10,8 @@ const RETRY_DELAY: Duration = Duration::from_millis(20);
 pub async fn run(host: &str, port: &str) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     let client = Client::new();
     let url = format!("http://{}:{}/", host, port);
-    let content_length: usize =
-        client.get(&url)
+    let content_length: usize = client
+        .get(&url)
         .send()
         .await?
         .headers()
@@ -40,19 +40,26 @@ pub async fn run(host: &str, port: &str) -> Result<Vec<u8>, Box<dyn Error + Send
                 let client_attempt = client_clone.clone();
                 let url_attempt = url_clone.clone();
 
-                match client_attempt.get(&url_attempt).header(header::RANGE, range_header.clone()).send().await {
-                    Ok(resp) => {
-                        match resp.bytes().await {
-                            Ok(bytes) => {
-                                return Ok(bytes);
-                            }
-                            Err(e) => {
-                                let err_msg = format!("Error reading bytes for {}: {}", range_header, e);
-                                last_error = Some(Box::new(std::io::Error::new(std::io::ErrorKind::Other, err_msg)));
-                                break;
-                            }
+                match client_attempt
+                    .get(&url_attempt)
+                    .header(header::RANGE, range_header.clone())
+                    .send()
+                    .await
+                {
+                    Ok(resp) => match resp.bytes().await {
+                        Ok(bytes) => {
+                            return Ok(bytes);
                         }
-                    }
+                        Err(e) => {
+                            let err_msg =
+                                format!("Error reading bytes for {}: {}", range_header, e);
+                            last_error = Some(Box::new(std::io::Error::new(
+                                std::io::ErrorKind::Other,
+                                err_msg,
+                            )));
+                            break;
+                        }
+                    },
                     Err(e) => {
                         last_error = Some(Box::new(e));
                     }
@@ -63,26 +70,26 @@ pub async fn run(host: &str, port: &str) -> Result<Vec<u8>, Box<dyn Error + Send
                 "Failed to fetch range {} after {} retries. Last error: {:?}",
                 range_header,
                 MAX_RETRIES,
-                last_error.map(|e| e.to_string()).unwrap_or_else(|| "Unknown error".to_string())
+                last_error
+                    .map(|e| e.to_string())
+                    .unwrap_or_else(|| "Unknown error".to_string())
             );
             Err(final_err_msg.into())
         });
         tasks.push(task);
-    };
+    }
     let results = join_all(tasks).await;
     let mut i = -1;
     for result in results {
         i += 1;
         match result {
-            Ok(task_output) => {
-                match task_output {
-                    Ok(bytes) => {
-                        data.extend_from_slice(&bytes);
-                    }
-                    Err(e) => {
-                        eprintln!("Error in task1 {}: {}", i, e);
-                        return Err(e);
-                    }
+            Ok(task_output) => match task_output {
+                Ok(bytes) => {
+                    data.extend_from_slice(&bytes);
+                }
+                Err(e) => {
+                    eprintln!("Error in task1 {}: {}", i, e);
+                    return Err(e);
                 }
             },
             Err(e) => {

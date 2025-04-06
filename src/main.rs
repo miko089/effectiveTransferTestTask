@@ -6,9 +6,7 @@ mod r#async;
 #[cfg(feature = "async")]
 use tokio;
 
-
-
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 
 const HOST: &str = "127.0.0.1";
 const PORT: &str = "8080";

@@ -1,19 +1,20 @@
-use std::error::Error;
-use std::io::Read;
 use reqwest::blocking::{Client, Response};
 use reqwest::header::{CONTENT_LENGTH, RANGE};
+use std::error::Error;
+use std::io::Read;
 
-fn read_body_soft (resp: Response) -> Result<Vec<u8>, reqwest::Error> {
+fn read_body_soft(resp: Response) -> Result<Vec<u8>, reqwest::Error> {
     let mut resp = resp.error_for_status()?;
 
-    let capacity = resp.headers()
+    let capacity = resp
+        .headers()
         .get(CONTENT_LENGTH)
         .and_then(|val| val.to_str().ok())
         .and_then(|s| s.parse::<usize>().ok())
         .unwrap_or(0);
 
     let mut body_bytes: Vec<u8> = Vec::with_capacity(capacity);
-    let mut buffer = [0u8; 1024*1024];
+    let mut buffer = [0u8; 1024 * 1024];
 
     loop {
         match resp.read(&mut buffer) {
@@ -34,7 +35,6 @@ fn read_body_soft (resp: Response) -> Result<Vec<u8>, reqwest::Error> {
     Ok(body_bytes)
 }
 
-
 pub fn run(host: &str, port: &str) -> Result<Vec<u8>, Box<dyn Error>> {
     let client = Client::new();
     let url = format!("http://{}:{}/", host, port);
@@ -45,7 +45,8 @@ pub fn run(host: &str, port: &str) -> Result<Vec<u8>, Box<dyn Error>> {
         return Err(Box::new(initial_resp.error_for_status().unwrap_err()));
     }
 
-    let content_length = initial_resp.headers()
+    let content_length = initial_resp
+        .headers()
         .get(CONTENT_LENGTH)
         .ok_or("No header Content-Length")?
         .to_str()?
@@ -56,9 +57,7 @@ pub fn run(host: &str, port: &str) -> Result<Vec<u8>, Box<dyn Error>> {
     while data.len() < content_length {
         let current_len = data.len();
         let range_header = format!("bytes={}-{}", current_len, content_length);
-        let range_resp = client.get(&url)
-            .header(RANGE, range_header)
-            .send()?;
+        let range_resp = client.get(&url).header(RANGE, range_header).send()?;
 
         let chunk_bytes = read_body_soft(range_resp)?;
 
@@ -76,4 +75,3 @@ pub fn run(host: &str, port: &str) -> Result<Vec<u8>, Box<dyn Error>> {
     }
     Ok(data)
 }
-
