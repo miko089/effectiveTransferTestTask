@@ -13,7 +13,7 @@ fn read_body_soft (resp: Response) -> Result<Vec<u8>, reqwest::Error> {
         .unwrap_or(0);
 
     let mut body_bytes: Vec<u8> = Vec::with_capacity(capacity);
-    let mut buffer = [0u8; 8192]; // Буфер для чтения
+    let mut buffer = [0u8; 1024*1024];
 
     loop {
         match resp.read(&mut buffer) {
