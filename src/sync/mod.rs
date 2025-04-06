@@ -1,61 +1,79 @@
 use std::error::Error;
 use std::io::Read;
-use ureq;
-use ureq::Body;
-use ureq::http::Response;
+use reqwest::blocking::{Client, Response};
+use reqwest::header::{CONTENT_LENGTH, RANGE};
 
-const HOST: &str = "127.0.0.1";
-const PORT: &str = "8080";
+fn read_body_soft (resp: Response) -> Result<Vec<u8>, reqwest::Error> {
+    let mut resp = resp.error_for_status()?;
 
-fn read_to(resp: Response<Body>, buf: &mut Vec<u8>) -> Result<(), Box<dyn Error>> {
-    if let Err(err) = resp.into_body().into_reader().read_to_end(buf) {
-        if err.kind() != std::io::ErrorKind::UnexpectedEof {
-            return Err(Box::new(err));
+    let capacity = resp.headers()
+        .get(CONTENT_LENGTH)
+        .and_then(|val| val.to_str().ok())
+        .and_then(|s| s.parse::<usize>().ok())
+        .unwrap_or(0);
+
+    let mut body_bytes: Vec<u8> = Vec::with_capacity(capacity);
+    let mut buffer = [0u8; 8192]; // Буфер для чтения
+
+    loop {
+        match resp.read(&mut buffer) {
+            Ok(0) => {
+                break;
+            }
+            Ok(n) => {
+                body_bytes.extend_from_slice(&buffer[..n]);
+            }
+            Err(ref e) if e.kind() == std::io::ErrorKind::Interrupted => {
+                continue;
+            }
+            Err(_io_error) => {
+                break;
+            }
         }
     }
-    Ok(())
+    Ok(body_bytes)
 }
 
-pub fn run() -> Result<Vec<u8>, Box<dyn Error>>{
-    let mut data: Vec<u8> = Vec::new();
 
-    let mut resp = ureq::get(&format!("http://{}:{}/", HOST, PORT))
-        .call();
-    if let Err(e) = resp {
-        return Err(Box::new(e));
+pub fn run(host: &str, port: &str) -> Result<Vec<u8>, Box<dyn Error>> {
+    let client = Client::new();
+    let url = format!("http://{}:{}/", host, port);
+
+    let initial_resp = client.get(&url).send()?;
+
+    if !initial_resp.status().is_success() {
+        return Err(Box::new(initial_resp.error_for_status().unwrap_err()));
     }
-    let mut resp = resp.unwrap();
 
-    let content_length = resp.headers()["content-length"]
-        .to_str().unwrap()
-        .parse::<usize>()
-        .ok();
+    let content_length = initial_resp.headers()
+        .get(CONTENT_LENGTH)
+        .ok_or("Отсутствует заголовок Content-Length")?
+        .to_str()?
+        .parse::<usize>()?;
 
-    match content_length {
-        Some(content_length) => {
-            data.reserve(content_length);
-        },
-        None => {
-            return Err(Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData,
-                                                    "Invalid content-length")));
-        }
-    }
-    let content_length = content_length.unwrap();
-    read_to(resp, &mut data)?;
+    let mut data = read_body_soft(initial_resp)?;
 
     while data.len() < content_length {
-        let mut buf = Vec::new();
-        let mut resp =
-            ureq::get(&format!("http://{}:{}/", HOST, PORT))
-                .header("Range", format!("bytes={}-{}", data.len(), content_length))
-                .call();
-        if let Err(e) = resp {
-            return Err(Box::new(e));
-        }
-        let resp = resp.unwrap();
-        read_to(resp, &mut buf)?;
+        let current_len = data.len();
+        let range_header = format!("bytes={}-{}", current_len, content_length);
+        let range_resp = client.get(&url)
+            .header(RANGE, range_header)
+            .send()?;
 
-        data.extend(buf);
+        let chunk_bytes = read_body_soft(range_resp)?;
+
+        if chunk_bytes.is_empty() && data.len() < content_length {
+            break;
+        }
+
+        data.extend_from_slice(&chunk_bytes);
+    }
+    if data.len() != content_length {
+        return Err(Box::new(std::io::Error::new(
+            std::io::ErrorKind::UnexpectedEof,
+            format!("Expected {} bytes, but got {}", content_length, data.len()),
+        )));
     }
     Ok(data)
 }
+
