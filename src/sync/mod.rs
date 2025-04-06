@@ -47,7 +47,7 @@ pub fn run(host: &str, port: &str) -> Result<Vec<u8>, Box<dyn Error>> {
 
     let content_length = initial_resp.headers()
         .get(CONTENT_LENGTH)
-        .ok_or("Отсутствует заголовок Content-Length")?
+        .ok_or("No header Content-Length")?
         .to_str()?
         .parse::<usize>()?;
 
