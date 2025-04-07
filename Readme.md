@@ -1,4 +1,20 @@
 # effectiveTransferTestTask
+## Table of Contents
+1. [Description](#description)
+2. [Features](#features)
+3. [Idea](#idea)
+4. [Implementation Notes](#implementation-notes)
+    - [Some details and thoughts](#some-details-and-thoughts)
+    - [Why synchronous mode faster?](#why-synchronous-mode-faster)
+    - [Why I even implemented async mode?](#why-i-even-implemented-async-mode)
+    - [Why I implemented sync mode?](#why-i-implemented-sync-mode)
+5. [Usage](#usage)
+    - [Prerequisites](#prerequisites)
+    - [Cloning the repository](#cloning-the-repository)
+    - [Building the project](#building-the-project)
+    - [Running the project](#running-the-project)
+6. [How fast it is?](#how-fast-it-is)
+7. [Contact](#contact)
 ## Description
 This project contains a Rust client application to download binary 
 data from a glitchy HTTP server. The server may send data partially, 
