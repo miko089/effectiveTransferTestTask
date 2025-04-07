@@ -7,7 +7,6 @@ so the client uses the HTTP "Range" header to complete the download.
 ## Features
 - Support for both synchronous and asynchronous data downloading.
 - Data integrity verification using SHA-256 hash.
-- Option to choose between synchronous and asynchronous modes.
 
 ## Idea
 The client application is designed with two solutions in mind:
